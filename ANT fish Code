@@ -1,0 +1,756 @@
+# preload the images in the beginning
+
+var preload = {
+  type:"preload",
+  images:["fish_lllll.png","fish_llrll.png","fish_rrlrr.png","fish_rrrrr.png",
+          "white.png"],
+  audio:["woohoo2.mp3"],
+  video:["success_r.mp4","success_l.mp4","fail.mp4"]
+}
+
+jsPsych.plugins['survey-dropdown'] = (function() {
+  var plugin = {};
+
+  plugin.info = {
+    name: 'survey-dropdown',
+    description: '',
+    parameters: {
+      questions: {
+        type: jsPsych.plugins.parameterType.COMPLEX,
+        array: true,
+        pretty_name: 'Questions',
+        nested: {
+          prompt: {
+            type: jsPsych.plugins.parameterType.STRING,
+            pretty_name: 'Prompt',
+            default: undefined,
+            description: 'The strings that will be associated with a group of options.'
+          },
+          options: {
+            type: jsPsych.plugins.parameterType.STRING,
+            pretty_name: 'Options',
+            array: true,
+            default: undefined,
+            description: 'Displays options for an individual question.'
+          },
+          required: {
+            type: jsPsych.plugins.parameterType.BOOL,
+            pretty_name: 'Required',
+            default: false,
+            description: 'Subject will be required to pick an option for each question.'
+          },
+          horizontal: {
+            type: jsPsych.plugins.parameterType.BOOL,
+            pretty_name: 'Horizontal',
+            default: false,
+            description: 'If true, then questions are centered and options are displayed horizontally.'
+          },
+          name: {
+            type: jsPsych.plugins.parameterType.STRING,
+            pretty_name: 'Question Name',
+            default: '',
+            description: 'Controls the name of data values associated with this question'
+          }
+        }
+      },
+      randomize_question_order: {
+        type: jsPsych.plugins.parameterType.BOOL,
+        pretty_name: 'Randomize Question Order',
+        default: false,
+        description: 'If true, the order of the questions will be randomized'
+      },
+      preamble: {
+        type: jsPsych.plugins.parameterType.STRING,
+        pretty_name: 'Preamble',
+        default: null,
+        description: 'HTML formatted string to display at the top of the page above all the questions.'
+      },
+      button_label: {
+        type: jsPsych.plugins.parameterType.STRING,
+        pretty_name: 'Button label',
+        default:  'Continue',
+        description: 'Label of the button.'
+      }
+    }
+  }
+  plugin.trial = function(display_element, trial) {
+    var plugin_id_name = "jspsych-survey-dropdown";
+
+# html settings & Name, birth page
+
+    var html = "";
+
+    // inject CSS for trial
+    html += '<style id="jspsych-survey-dropdown-css">';
+    html += ".jspsych-survey-dropdown-question { margin-top: 2em; margin-bottom: 2em; text-align: left; }"+
+      ".jspsych-survey-dropdown-text span.required {color: darkred;}"+
+      ".jspsych-survey-dropdown-horizontal .jspsych-survey-dropdown-text {  text-align: center;}"+
+      ".jspsych-survey-dropdown-option { line-height: 2; }"+
+      ".jspsych-survey-dropdown-horizontal .jspsych-survey-dropdown-option {  display: inline-block;  margin-left: 1em;  margin-right: 1em;  vertical-align: top;}"+
+      "label.jspsych-survey-dropdown-text input[type='radio'] {margin-right: 1em;}";
+    html += '</style>';
+
+    // show preamble text
+    if(trial.preamble !== null){
+      html += '<div id="jspsych-survey-dropdown-preamble" class="jspsych-survey-dropdown-preamble">'+trial.preamble+'</div>';
+    }
+
+    // form element
+    html += '<form id="jspsych-survey-dropdown-form">';
+
+    // generate question order. this is randomized here as opposed to randomizing the order of trial.questions
+    // so that the data are always associated with the same question regardless of order
+    var question_order = [];
+    for(var i=0; i<trial.questions.length; i++){
+      question_order.push(i);
+    }
+    if(trial.randomize_question_order){
+      question_order = jsPsych.randomization.shuffle(question_order);
+    }
+
+    // add multiple-choice questions
+    for (var i = 0; i < trial.questions.length; i++) {
+
+      // get question based on question_order
+      var question = trial.questions[question_order[i]];
+      var question_id = question_order[i];
+
+      // create question container
+      var question_classes = ['jspsych-survey-dropdown-question'];
+      if (question.horizontal) {
+        question_classes.push('jspsych-survey-dropdown-horizontal');
+      }
+
+      html += '<div id="jspsych-survey-dropdown-'+question_id+'" class="'+question_classes.join(' ')+'"  data-name="'+question.name+'">';
+
+      // add question text
+      html += '<p class="jspsych-survey-dropdown-text survey-dropdown">' + question.prompt
+      if(question.required){
+        html += "<span class='required'>*</span>";
+      }
+      html += '</p>';
+
+      var required_attr = question.required ? 'required' : '';
+
+      // label for dropdown menu
+      //html += '<label for="jspsych-survey-dropdown-question-options">请选择</label>';
+
+      var input_name = 'jspsych-survey-dropdown-response-'+question_id;
+      // add dropdown
+      html += '<select name="'+ input_name +'" id="'+ input_name +'"'+required_attr+'>';
+      html += '<option value="" id="null">请从下列选项中选择</option>';
+
+      for (var j = 0; j < question.options.length; j++) {
+        // add label and question text
+        var option_id_name = "jspsych-survey-dropdown-option-"+question_id+"-"+j;
+        // var input_id = 'jspsych-survey-dropdown-response-'+question_id+'-'+j;
+
+        html += '<option value="'+ question.options[j] +'" id="'+option_id_name+'">'+question.options[j]+'</option>';
+      }
+
+      html += '</select>';
+      html += '</div>';
+    }
+
+    // add submit button
+    html += '<input type="submit" id="'+plugin_id_name+'-next" class="'+plugin_id_name+' jspsych-btn"' + (trial.button_label ? ' value="'+trial.button_label + '"': '') + '></input>';
+    html += '</form>';
+
+    // render
+    display_element.innerHTML = html;
+
+    document.querySelector('form').addEventListener('submit', function(event) {
+      event.preventDefault();
+      // measure response time
+      var endTime = performance.now();
+      var response_time = endTime - startTime;
+
+      // create object to hold responses
+      var question_data = {};
+      for(var i=0; i<trial.questions.length; i++){
+        // get question based on question_order
+        var question_id = question_order[i];
+
+        var match = display_element.querySelector('#jspsych-survey-dropdown-'+i);
+        var id = "Q" + i;
+        //AN added this
+        var input_name = 'jspsych-survey-dropdown-response-'+question_id;
+        if(match.querySelector('#'+input_name+' option:checked') !== null){
+          var val = match.querySelector('#'+input_name+' option:checked').value;
+        } else {
+          var val = "";
+        }
+        var obje = {};
+        var name = id;
+        if(match.attributes['data-name'].value !== ''){
+          name = match.attributes['data-name'].value;
+        }
+        obje[name] = val;
+        Object.assign(question_data, obje);
+      }
+      // save data
+      var trial_data = {
+        "rt": response_time,
+        "responses": JSON.stringify(question_data),
+        "question_order": JSON.stringify(question_order)
+      };
+      display_element.innerHTML = '';
+
+      // next trial
+      jsPsych.finishTrial(trial_data);
+    });
+
+    var startTime = performance.now();
+  };
+
+  return plugin;
+})();
+
+document.body.style.background = "Cyan";
+
+function getRandomIntInclusive(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffle(array) {
+  var currentIndex = array.length, temporaryValue, randomIndex ;
+
+  // While there remain elements to shuffle...
+  while (0 !== currentIndex) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex -= 1;
+
+    // And swap it with the current element.
+    temporaryValue = array[currentIndex];
+    array[currentIndex] = array[randomIndex];
+    array[randomIndex] = temporaryValue;
+  }
+
+  return array;
+}
+
+function fillArray(value, len) {
+  var arr = [];
+  for (var i = 0; i < len; i++) {
+    arr.push(value);
+  }
+  return arr;
+}
+
+# add conditions 
+
+var condition = ['noCongLeft', 'noCongRight','doubleCongLeft', 'doubleCongRight','centreCongLeft','centerCongRight','spatialCongLeft','spatialCongRight','noIncongLeft','noIncongRight','doubleIncongLeft','doubleIncongRight','centerIncongLeft','centerIncongRight','spatialInCongLeft','spatialInCongRight'];
+
+
+function buildBlockTimeline (imgCongLeft,imgCongRight,imgInCongLeft,imgIncongRight,blockNo, condition) {
+   // first we build the objects with their property
+   var cueUp = '<DIV id="antCueUp">*</DIV>';
+   var cueDown = '<DIV id="antCueDown">*</DIV>';
+   var cueDouble = '<DIV id="antCueUp">*</DIV><DIV id="antCueDown">*</DIV>';
+   var cueCenter = '<DIV id="antFixationPoint">*</DIV>';
+
+    var posDown = "'" + 'antImageDown' + "'";
+    var posUp = "'" + 'antImageUp' + "'";
+ 
+    var cues = [cueUp,cueDown,cueUp,cueDown,cueUp,cueDown,cueUp,cueDown]; 
+    shuffle(cues);
+    // building the 24 times position will be set randomly
+    var upArray = fillArray(posUp,12);
+    var downArray = fillArray(posDown,12);
+    var upDownArray = upArray.concat(downArray);
+    shuffle(upDownArray);
+
+    //shuffle conditions
+    shuffle(condition)
+
+    var block_one = [];
+    var image;
+    var cue;
+    var cueKind;
+    var congruency;
+    var imgPos;
+    var direction;
+    blockNo = blockNo;
+    for (i=0;i<condition.length;i++) {
+      switch(condition[i]) {
+        
+        case 'noCongLeft':
+          image = imgCongLeft;
+          cue = '';
+          cueKind = "none";
+          congruency = 'congruent';
+          direction = "left";
+          imgPos = upDownArray.pop();
+          break;
+        case 'doubleCongLeft':
+          image = imgCongLeft;
+          cue = cueDouble;
+          cueKind = "double";
+          congruency = 'congruent';
+          direction = "left";
+          imgPos = upDownArray.pop();
+          break;
+        case 'centreCongLeft':
+          image = imgCongLeft;
+          cue = cueCenter;
+          cueKind = "center";
+          congruency = 'congruent';
+          direction = "left";
+          imgPos = upDownArray.pop();
+          break;
+        case 'spatialCongLeft':
+          image = imgCongLeft;
+          cue = cues.pop(); 
+          cueKind = "spatial";
+          direction = "left";
+          congruency = 'congruent';
+            if (cue==cueDown) {
+              imgPos = posDown;
+            } else {
+              imgPos = posUp;
+            }
+          break;  
+        case 'noCongRight':
+          image = imgCongRight;
+          cue = ''; 
+          cueKind = "none";
+          direction = "right";
+          congruency = 'congruent';
+          imgPos = upDownArray.pop();
+          break; 
+        case 'doubleCongRight':
+          image = imgCongRight;
+          cue = cueDouble;
+          direction = "right";
+          cueKind = "double";
+          congruency = 'congruent'; 
+          imgPos = upDownArray.pop();
+          break;
+        case 'centerCongRight':
+          image = imgCongRight;
+          cue = cueCenter; 
+          direction = "right";
+          cueKind = "center";
+          congruency = 'congruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'spatialCongRight':
+          image = imgCongRight;
+          cue = cues.pop();
+          cueKind = "spatial";
+          direction = "right";
+          congruency = 'congruent';
+          if (cue==cueDown) {
+              imgPos = posDown;
+            } else {
+              imgPos = posUp;
+            }
+          break;
+        case 'noIncongLeft':
+          image = imgInCongLeft;
+          cue = ''; 
+          cueKind = "none";
+          direction = "left";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'doubleIncongLeft':
+          image = imgInCongLeft;
+          cue = cueDouble; 
+          cueKind = "double";
+          direction = "left";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'centerIncongLeft':
+          image = imgInCongLeft;
+          cue = cueCenter; 
+          cueKind = "center";
+          direction = "left";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'spatialInCongLeft':
+          image = imgInCongLeft;
+          cue = cues.pop(); 
+          cueKind = "spatial";
+          direction = "left";
+          congruency = 'incongruent';
+          if (cue==cueDown) {
+              imgPos = posDown;
+            } else {
+              imgPos = posUp;
+            }
+          break;
+        case 'noIncongRight':
+          image = imgIncongRight;
+          cue = ''; 
+          cueKind = "none";
+          direction = "right";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'doubleIncongRight':
+          image = imgIncongRight;
+          cue = cueDouble; 
+          cueKind = "double";
+          direction = "right";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'centerIncongRight':
+          image = imgIncongRight;
+          cue = cueCenter; 
+          cueKind = "center";
+          direction = "right";
+          congruency = 'incongruent';
+          imgPos = upDownArray.pop();
+          break;
+        case 'spatialInCongRight':
+          image = imgIncongRight;
+          cue = cues.pop(); 
+          cueKind = "spatial";
+          direction = "right";
+          congruency = 'incongruent';
+          if (cue==cueDown) {
+              imgPos = posDown;
+            } else {
+              imgPos = posUp;
+            }
+          break;
+      };
+      block_one.push(
+        {
+          stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+          stimulus_duration: getRandomIntInclusive(400,1600),
+          //trial_duration:5,
+          response_ends_trial: false,
+          data: {trial: "fixation"},
+          //trial_duration: 200,
+          choices: jsPsych.NO_KEYS
+        },
+        {
+          stimulus: cue,
+          //trial_duration: 5,
+          stimulus_duration:150,
+          response_ends_trial: false,
+          data: {trial: "cue"},
+          //trial_duration: 300,
+          choices: jsPsych.NO_KEYS
+          
+        },
+        {
+          stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+          data: {trial: "fixation"},
+          //stimulus_duration:450,
+          //trial_duration: 5,
+          stimulus_duration: 450,
+          response_ends_trial: false,
+          choices: jsPsych.NO_KEYS
+            
+        },
+        {
+          stimulus: "<DIV id=" + imgPos + "><img src=" + image + "></DIV>",
+          data: {trial: "stimulus", cong: congruency, cue: cueKind, block: blockNo, direction: direction},
+          trial_duration: 1700,
+          //stimulus_duration: 1700
+        },
+        {
+          type: 'video-keyboard-response',
+          stimulus: function(data){
+            var last_trial_correct = jsPsych.data.get().last(1).values()[0].correct;
+            if(last_trial_correct){
+              if (jsPsych.data.get().last(1).values()[0].direction == 'left'){
+              return ['success_l.mp4'];
+              } else {
+                return ['success_r.mp4'];
+              } // the parameter value has to be returned from the function
+            } else {
+              return ['fail.mp4']; // the parameter value has to be returned from the function
+            }
+          },
+          width: 600,
+          height: 600,
+          data:{trial: "feedback"},
+          choices:jsPsych.NO_KEYS,
+          trial_duration:2000,
+        },
+        {
+          stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+          data: {trial: "fixation"},
+          trial_duration: 1000,
+          choices: jsPsych.NO_KEYS
+        }
+
+        );
+    };
+      return block_one;
+  };
+
+var imgCongLeft= 'fish_lllll.png';
+var imgCongRight = 'fish_rrrrr.png';
+var imgInCongLeft = 'fish_rrlrr.png';
+var imgIncongRight = 'fish_llrll.png';
+var blockNo = "1";
+
+var snd = new Audio("woohoo2.mp3");
+
+var presentation_timline = [
+  {
+    stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+    stimulus_duration: getRandomIntInclusive(400,1600),
+    trial_duration:1000,
+    response_ends_trial: false,
+    data: {trial: "fixation"},
+    //trial_duration: 200,
+    choices: jsPsych.NO_KEYS
+  },
+  {
+    stimulus: "<DIV id='antImageUp'><img src='fish_lllll.png'></DIV>",
+    data: {trial: "stimulus", cong: "cong", cue: "none", block: "presentation", direction: "left"},
+    choices: ['1'],
+  },
+  {
+    stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+    stimulus_duration: getRandomIntInclusive(400,1600),
+    trial_duration:1000,
+    response_ends_trial: false,
+    data: {trial: "fixation"},
+    //trial_duration: 200,
+    choices: jsPsych.NO_KEYS
+  },
+  {
+    stimulus: "<DIV id='antImageDown'><img src='fish_rrrrr.png'></DIV>",
+    data: {trial: "stimulus", cong: "cong", cue: "none", block: "presentation", direction: "right"},
+    choices: ['0'],
+  },
+  {
+    stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+    stimulus_duration: getRandomIntInclusive(400,1600),
+    trial_duration:1000,
+    response_ends_trial: false,
+    data: {trial: "fixation"},
+    //trial_duration: 200,
+    choices: jsPsych.NO_KEYS
+  },
+  {
+    stimulus: "<DIV id='antImageDown'><img src='fish_rrlrr.png'></DIV>",
+    data: {trial: "stimulus", cong: "incong", cue: "none", block: "presentation",direction: "left"},
+    choices: ['1'],
+  },
+  {
+    stimulus: "<DIV id='antFixationPoint'>+</DIV>",
+    stimulus_duration: getRandomIntInclusive(400,1600),
+    trial_duration:1000,
+    response_ends_trial: false,
+    data: {trial: "fixation"},
+    //trial_duration: 200,
+    choices: jsPsych.NO_KEYS
+  },
+  {
+    stimulus: "<DIV id='antImageUp'><img src='fish_llrll.png'></DIV>",
+    data: {trial: "stimulus", cong: "incong", cue: "none", block: "presentation",direction: "right"},
+    choices: ['0'],
+  }
+];
+
+var presentation_stage = {
+  type: 'html-keyboard-response',
+  timeline: presentation_timline,
+  //trial_duration: 1000,
+  //stimulus_duration: 1000,
+  //choices: ['1','0'],
+  on_finish: function(data) {
+    if(data.direction=="left") {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '1')) {
+        data.correct = true;
+      }
+      else data.correct = false;
+    } else {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '0')) {
+        data.correct = true;
+      }
+      else data.correct = false;
+    }
+  }
+};
+
+var practice_timeline = buildBlockTimeline(imgCongLeft,imgCongRight,imgInCongLeft,imgIncongRight,"practice", jsPsych.randomization.sampleWithoutReplacement(condition, 10));
+
+var practice_stage = {
+  type: 'html-keyboard-response',
+  timeline: practice_timeline,
+  trial_duration: 1000,
+  stimulus_duration: 1000,
+  choices: ['1','0'],
+  on_finish: function(data) {
+    if(data.direction=="left") {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '1')) {
+        data.correct = true;
+      }
+      else data.correct = false;
+    } else {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '0')) {
+        data.correct = true;
+      }
+      else data.correct = false;
+    }
+  }
+};
+
+var score1 = 0
+
+block_one = buildBlockTimeline(imgCongLeft,imgCongRight,imgInCongLeft,imgIncongRight,blockNo,condition);
+
+block_two = buildBlockTimeline(imgCongLeft,imgCongRight,imgInCongLeft,imgIncongRight, "2", condition)
+
+block_three = buildBlockTimeline(imgCongLeft,imgCongRight,imgInCongLeft,imgIncongRight, "3", condition)
+
+var first_stage = {
+  type: 'html-keyboard-response',
+  timeline: block_one,
+  trial_duration: 1000,
+  stimulus_duration: 1000,
+  choices: ['1','0'],
+  on_finish: function(data) {
+    if(data.direction=="left") {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '1')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    } else {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '0')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    }
+  }
+};
+
+var second_stage = {
+  type: 'html-keyboard-response',
+  timeline: block_two,
+  trial_duration: 1000,
+  stimulus_duration: 1000,
+  choices: ['1','0'],
+  on_finish: function(data) {
+    if(data.direction=="left") {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '1')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    } else {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '0')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    }
+  }
+};
+
+var third_stage = {
+  type: 'html-keyboard-response',
+  timeline: block_three,
+  trial_duration: 1000,
+  stimulus_duration: 1000,
+  choices: ['1','0'],
+  on_finish: function(data) {
+    if(data.direction=="left") {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '1')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    } else {
+      if(jsPsych.pluginAPI.compareKeys(data.response, '0')) {
+        data.correct = true;
+        score1 += 1;
+      }
+      else data.correct = false;
+    }
+  }
+};
+
+var presentation_intro = {
+  type: "html-keyboard-response",
+  stimulus:`
+  <p>以下为presentation stage</p>
+  <p>请按任意键继续</p>`
+}
+
+var practice_intro = {
+  type: "html-keyboard-response",
+  stimulus:`
+  <p>以下为practice stage</p>
+  <p>请按任意键继续</p>`
+}
+
+var first_stage_intro = {
+  type: "html-keyboard-response",
+  stimulus:`
+  <p>以下为first stage</p>
+  <p>请按任意键继续</p>`
+}
+
+var second_stage_intro = {
+  type: "html-keyboard-response",
+  stimulus:`
+  <p>以下为second stage</p>
+  <p>请按任意键继续</p>`
+}
+
+var third_stage_intro = {
+  type: "html-keyboard-response",
+  stimulus:`
+  <p>以下为third stage</p>
+  <p>请按任意键继续</p>`
+}
+
+var end = {
+  type:"html-keyboard-response",
+  stimulus: "<p>游戏已结束,请按任意键退出</p>",
+  on_start:function(data){
+    window.alert("游戏正确率："+score1*100/48+"%")
+  }
+}
+
+var survey = {
+  type: 'survey-text',
+  preamble: '<p><b>请在实验人员指示后开始游戏</b></p>',
+  questions: [
+    {prompt: '孩子的姓名：', name: 'name',required: true},
+  ],
+  button_label:'开始实验'
+}
+
+var survey_birth = {
+  type: 'survey-dropdown',
+  questions:[
+    {prompt:'孩子的出生年份：', name:'year', options: ['2021','2020','2019','2018','2017','2016','2015','2014','2013','2012'], required: true},
+    {prompt:'孩子的出生月份：', name:'month', options: ['1','2','3','4','5','6','7','8','9','10','11','12'], required: true},
+    {prompt:'孩子的出生日期：', name:'day', options: ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31'], required: true}
+  ]
+}
+
+var fullscreen = {
+  type: 'fullscreen',
+  fullscreen_mode: true,
+  message:'<p>点击下方按钮后将进入全屏模式，实验过程中请勿退出全屏</p>',
+  button_label: '开始实验'
+};
+
+var fullscreen_exit = {
+  type: "fullscreen",
+  fullscreen_mode: false,
+};
+
+jsPsych.init({
+  timeline: [preload,survey,survey_birth,fullscreen,presentation_intro,presentation_stage,practice_intro,practice_stage,first_stage_intro,first_stage,second_stage_intro,second_stage,third_stage_intro,third_stage,end,fullscreen_exit],
+  show_progress_bar: true,
+});
